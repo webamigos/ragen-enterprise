@@ -36,6 +36,12 @@ updates:
       # the adapter has to be read, not merged.
       - dependency-name: '@ragenai/jobs'
         update-types: [version-update:semver-major]
+      # The adapter has to compile with the TypeScript the core uses (~5.7),
+      # because it compiles against the core's emitted declarations. A major
+      # taken here first would diverge from the thing it type-checks against,
+      # so this follows the core rather than dependabot.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
