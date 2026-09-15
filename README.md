@@ -26,7 +26,9 @@ honour ([`AGENTS.md`](AGENTS.md)) and the deployment notes that belong beside it
 
 - **Not a fork of the worker.** It holds no pipeline handler and no activity.
   Both come from the core: the handlers from `@ragenai/jobs`, the activities
-  from the published worker image that this repository's Dockerfile extends.
+  from the worker image that this repository's Dockerfile extends — an image
+  the core does not publish yet, which is a prerequisite rather than an
+  assumption.
   A copy of either here is the failure the core's ADR-26 and ADR-33 were
   written to undo.
 - **Not a paywall.** See below.

@@ -40,10 +40,14 @@ could not drift into two behaviours, one of which nobody tests.
 
 Two things, no more:
 
-1. **The image.** This repository's Dockerfile is `FROM` the published Ragen
-   worker image plus `npm i @ragenai/jobs-temporal`. The handlers and the 69
-   activity modules come from the core; nothing is rebuilt here. Run that image
-   instead of the OSS worker image.
+1. **The image.** This repository's Dockerfile is `FROM` the Ragen worker
+   image plus the compiled adapter. The handlers and the 69 activity modules
+   come from the core; nothing is rebuilt here. Run that image instead of the
+   OSS worker image.
+
+   The core does not publish that image to a registry yet, so this is the one
+   prerequisite between here and a deployable artifact.
+
 2. **The switch.** `WORKER_RUNTIME=temporal`, read by the worker _and_ by every
    producer — `apps/web` and `apps/api` enqueue, so they must agree with the
    worker or the jobs go to an engine nobody is reading.

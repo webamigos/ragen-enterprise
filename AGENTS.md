@@ -57,13 +57,29 @@ to avoid.
    [ADR-33](https://github.com/webamigos/RagenAI/blob/main/docs/adrs/33-shared-platform-contracts-package.md),
    which are both records of the project paying to undo exactly that.
 2. **The image extends, it does not rebuild.** The deployment artifact is
-   `FROM` the published OSS worker image plus this adapter. A Dockerfile here
-   that installs the pipeline from source is the same mistake as (1) wearing a
+   `FROM` the OSS worker image plus this adapter. A Dockerfile here that
+   installs the pipeline from source is the same mistake as (1) wearing a
    different hat.
+
+   **That base image does not exist yet.** Nothing in the core publishes a
+   Ragen image to a registry — self-hosting means building from source today —
+   so publishing `ragen-worker` is a prerequisite for this repository's
+   artifact, and it is half of the core spec's Q1. Do not work around it by
+   building the pipeline here.
+
 3. **The contract is a dependency, not a copy.** Job names, payload types and
    `JobContext` are `@ragenai/jobs`. A hand-synced copy of them here would be
    caught by no test in either repository — which is precisely why it must not
    exist.
+
+   Where the package comes from is Q1 in the core spec, and the recommended
+   answer is _not_ a registry: the worker image's
+   `/app/node_modules/@ragenai/*` are symlinks into `/app/packages/`, so
+   `@ragenai/jobs` already resolves inside the base image. The adapter then
+   declares it as a peer dependency it never installs, and compiles against
+   the exact contract the image ships rather than a version number that can
+   skew from it.
+
 4. **CI runs the real thing.** This repository runs the core's worker
    integration suite against a real Temporal container, against the current
    published handlers. A runtime that nothing exercises is not supported, it is
