@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -51,14 +51,19 @@ jobs:
   commits:
     name: Conventional commits
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Dependabot writes "ci: Bump actions/setup-node from 4 to 7" — a capital B
+    # that `subject-case` rejects, and `commit-message.prefix` in
+    # dependabot.yml controls the prefix only. So every dependency PR would
+    # fail a check about a message nobody here wrote, which is how a red tick
+    # stops meaning anything. The rule stays strict for commits we author.
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v7
         with:
           # commitlint needs the range, and a shallow clone has no base.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
