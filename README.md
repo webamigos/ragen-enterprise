@@ -17,10 +17,18 @@ in the core repository.
 
 ## Status
 
-**Scaffold.** No package is published yet. The adapter arrives when the core's
-Phase E lands; until then this repository holds the contract it will have to
-honour ([`AGENTS.md`](AGENTS.md)) and the deployment notes that belong beside it
-([`docs/`](docs)).
+**Scaffold, and deliberately waiting.** Nothing is published here and nothing
+will be published to npm — decided 2026-09-15. The adapter is being built in
+the core as `packages/jobs-temporal`, where it stays until `ragen-worker` is
+published as a container image; that is the core spec's Phase G, and it has no
+date. Until then durable execution is available to anyone who builds the worker
+from source, and this repository holds the contract the adapter will have to
+honour ([`AGENTS.md`](AGENTS.md)) plus the deployment notes that belong beside
+it ([`docs/`](docs)).
+
+Deferring the move costs nothing and buys something: while the adapter is in
+the core, the core's own CI can run it against a real Temporal, so drift
+between the two is zero because nothing has left yet.
 
 ## What this repository is not
 

@@ -14,9 +14,13 @@ them.
 
 One component is planned, and none is published yet:
 
-| Component                | What it is                                                  | State                                         |
-| ------------------------ | ----------------------------------------------------------- | --------------------------------------------- |
-| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | not written — arrives with the core's Phase E |
+| Component                | What it is                                                  | State                                                                                                                                                     |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | not here yet — built in the core as `packages/jobs-temporal`, and it moves in the core's **Phase G**, gated on `ragen-worker` being published as an image |
+
+**Nothing is published to npm**, here or in the core — decided 2026-09-15.
+The delivery mechanism is a container image, which is why Phase G waits for
+one.
 
 **The reason this repository exists** is that Ragen's default install runs the
 worker on BullMQ, and the Temporal path costs every install that does not want

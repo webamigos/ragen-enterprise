@@ -1,7 +1,10 @@
 # Durable execution: running Ragen's worker on Temporal
 
-**State: not yet implemented.** This page describes the shape the component will
-have, because that shape is a commitment made in the core's
+**State: not yet implemented, and not yet here.** The adapter is being built in
+the core as `packages/jobs-temporal` and moves to this repository once
+`ragen-worker` is published as an image — the core spec's Phase G. Nothing is
+published to npm in either repository. This page describes the shape the
+component will have, because that shape is a commitment made in the core's
 [worker-runtime spec](https://github.com/webamigos/RagenAI/blob/main/docs/specs/2026-09-15-bullmq-is-the-worker-runtime.md)
 and is easier to hold to when it is written down before the code exists.
 
