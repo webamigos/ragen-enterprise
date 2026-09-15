@@ -1,0 +1,47 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Listed first, because a dependency joins the first group it matches.
+      #
+      # The Temporal SDK is a family of packages that pin each other exactly.
+      # Splitting it across groups is not a style question: in the core
+      # repository (#942) half the family moved and the rest stayed ten minors
+      # behind, npm resolved that by installing two copies, and typecheck then
+      # failed on two nominal types with the same name. They move as a set or
+      # not at all.
+      temporal:
+        patterns:
+          - '@temporalio/*'
+        update-types: [minor, patch]
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      production-minor-patch:
+        dependency-type: production
+        update-types: [minor, patch]
+    ignore:
+      # The contract with the core. A major here means `JobContext` changed and
+      # the adapter has to be read, not merged.
+      - dependency-name: '@ragenai/jobs'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci

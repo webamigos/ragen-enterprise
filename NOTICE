@@ -1,0 +1,19 @@
+Ragen AI — Enterprise
+Copyright 2026 Web Amigos
+
+This product includes software developed by Web Amigos and the Ragen AI
+contributors.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file for the
+full terms.
+
+---
+
+This repository holds deployment-side extensions to Ragen AI
+(https://github.com/webamigos/RagenAI). It is licensed under the same terms as
+the core. The name records where these components sit in a deployment, not a
+separate licence — see README.md, "Why Apache 2.0 and not a commercial licence".
+
+If a directory here ever carries its own LICENSE file, that file governs the
+directory and everything under it. That is the same rule the core repository
+states in docs/open-core-boundary.md.

@@ -1,0 +1,25 @@
+# CODEOWNERS — paths that need a named reviewer even when someone else has
+# already approved the PR.
+#
+# GOTCHA: GitHub applies the LAST matching pattern only. A later, broader rule
+# silently overrides an earlier, narrower one — so the most specific rules
+# belong at the BOTTOM of this file, not the top.
+
+# Default: anything not matched below.
+*                               @webamigos/ragen-ai
+
+# CI and the deployment artifact. The image layering rule (AGENTS.md invariant
+# 2) is enforced by review, not by a test.
+/.github/workflows/             @webamigos/ragen-ai
+**/Dockerfile                   @webamigos/ragen-ai
+
+# The invariants themselves, and anything that changes what this repository is
+# allowed to contain.
+/AGENTS.md                      @patrykomiotek
+
+# Licensing and security policy — single owner on purpose. Any owner listed on
+# a line can approve alone, so these stay narrow.
+/LICENSE                        @patrykomiotek
+/NOTICE                         @patrykomiotek
+/SECURITY.md                    @patrykomiotek
+/.github/CODEOWNERS             @patrykomiotek

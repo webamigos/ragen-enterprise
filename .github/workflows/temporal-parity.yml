@@ -1,0 +1,57 @@
+# The promise this repository makes, as a workflow.
+#
+# A runtime nothing runs is not supported, it is abandoned with a package name.
+# So the Temporal adapter is exercised by the *core's* worker integration suite,
+# against a real Temporal server and the published handlers — not by a suite
+# written here, which would drift into testing the adapter against its own
+# assumptions.
+#
+# See AGENTS.md, invariant 4, and the core's worker-runtime spec, §8.3.
+name: Temporal parity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Nightly, after the core's own nightly suite has had time to publish.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporal-parity-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  parity:
+    name: Core worker suite on Temporal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Is there an adapter to test yet?
+        id: adapter
+        run: |
+          if [ -d packages/jobs-temporal ]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::No packages/jobs-temporal yet — the adapter arrives with the core repository'\''s Phase E. This job is a placeholder until then, and passing it proves nothing.'
+          fi
+
+      # Everything below runs only once the adapter exists. Steps to add with
+      # it, so the intent is not reconstructed from scratch later:
+      #
+      #   - services: a `temporalio/auto-setup` container and a Postgres for it
+      #   - install the published @ragenai/jobs at the version this adapter
+      #     declares, so the handlers under test are the real ones
+      #   - run the core's worker integration suite with WORKER_RUNTIME=temporal
+      #   - assert the four behaviours BullMQ cannot provide: resume after a
+      #     worker kill mid-job, durable retry state, cancel at a checkpoint,
+      #     and both schedules firing exactly once
+      - name: Placeholder
+        if: steps.adapter.outputs.present == 'false'
+        run: echo 'Nothing to run.'

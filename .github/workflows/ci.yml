@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # No `branches:` filter, deliberately: that filter matches a pull request's
+  # *base*, so a stacked PR — one opened against another branch still in review
+  # — matches nothing and runs no CI at all. The core repository merged two PRs
+  # that way (#1120, #1121). `push` keeps its filter so a stacked branch does
+  # not run twice.
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      # Each runs across every workspace via scripts/run-workspaces.mjs, which
+      # passes on a repository with no package yet — `npm run --workspaces`
+      # treats "no workspaces" as an error, and a red build on an empty
+      # scaffold says nothing about the code.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  commits:
+    name: Conventional commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # commitlint needs the range, and a shallow clone has no base.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint commit messages
+        run: >
+          npx commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+          --verbose
