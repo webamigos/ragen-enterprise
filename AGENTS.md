@@ -14,9 +14,9 @@ them.
 
 One component is planned, and none is published yet:
 
-| Component                | What it is                                                  | State                                                                                                                                                     |
-| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | not here yet — built in the core as `packages/jobs-temporal`, and it moves in the core's **Phase G**, gated on `ragen-worker` being published as an image |
+| Component                | What it is                                                  | State                                                                                                                                             |
+| ------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | moving in — `ragen-worker` is published, so the core's **Phase G** gate is open. The core still holds the copy an install uses until its G3 lands |
 
 **Nothing is published to npm**, here or in the core — decided 2026-09-15.
 The delivery mechanism is a container image, which is why Phase G waits for
@@ -65,11 +65,11 @@ to avoid.
    installs the pipeline from source is the same mistake as (1) wearing a
    different hat.
 
-   **That base image does not exist yet.** Nothing in the core publishes a
-   Ragen image to a registry — self-hosting means building from source today —
-   so publishing `ragen-worker` is a prerequisite for this repository's
-   artifact, and it is half of the core spec's Q1. Do not work around it by
-   building the pipeline here.
+   **That base image exists now.** The core publishes `ragen-worker` (and
+   `web`, `api`, `admin`, `mcp`) to `ghcr.io/webamigos` on every release, which
+   was the core spec's G1 and the one gate this repository's artifact waited
+   on. Build `FROM ghcr.io/webamigos/ragen-worker:<tag>` — pin the tag, and do
+   not work around the base by building the pipeline here.
 
 3. **The contract is a dependency, not a copy.** Job names, payload types and
    `JobContext` are `@ragenai/jobs`. A hand-synced copy of them here would be

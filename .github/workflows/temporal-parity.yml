@@ -39,15 +39,22 @@ jobs:
             echo 'present=true' >> "$GITHUB_OUTPUT"
           else
             echo 'present=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::No packages/jobs-temporal yet — the adapter arrives with the core repository'\''s Phase E. This job is a placeholder until then, and passing it proves nothing.'
+            echo '::notice::No packages/jobs-temporal yet — the adapter arrives with the core repository'\''s Phase G2, whose gate (a published ragen-worker image) is now met. This job is a placeholder until then, and passing it proves nothing.'
           fi
 
       # Everything below runs only once the adapter exists. Steps to add with
       # it, so the intent is not reconstructed from scratch later:
       #
-      #   - services: a `temporalio/auto-setup` container and a Postgres for it
-      #   - install the published @ragenai/jobs at the version this adapter
-      #     declares, so the handlers under test are the real ones
+      #   - a real Temporal server. The core's own parity job starts one from
+      #     `@temporalio/testing` rather than running `temporalio/auto-setup`,
+      #     because the container needs its own Postgres, seeds and readiness
+      #     handling in every job; `JOBS_TEST_TEMPORAL_ADDRESS` points the suite
+      #     at a container for anyone who wants one instead.
+      #   - resolve @ragenai/jobs from inside the base worker image, where
+      #     /app/node_modules/@ragenai/* symlink into /app/packages/. Nothing is
+      #     published to npm (core spec §8.5), so there is no version to install
+      #     — the point is to compile and run against the contract the image
+      #     actually ships.
       #   - run the core's worker integration suite with WORKER_RUNTIME=temporal
       #   - assert the four behaviours BullMQ cannot provide: resume after a
       #     worker kill mid-job, durable retry state, cancel at a checkpoint,

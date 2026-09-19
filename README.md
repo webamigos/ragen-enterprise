@@ -17,26 +17,24 @@ in the core repository.
 
 ## Status
 
-**Scaffold, and deliberately waiting.** Nothing is published here and nothing
-will be published to npm — decided 2026-09-15. The adapter is being built in
-the core as `packages/jobs-temporal`, where it stays until `ragen-worker` is
-published as a container image; that is the core spec's Phase G, and it has no
-date. Until then durable execution is available to anyone who builds the worker
-from source, and this repository holds the contract the adapter will have to
-honour ([`AGENTS.md`](AGENTS.md)) plus the deployment notes that belong beside
-it ([`docs/`](docs)).
+**The gate is open; the move is in progress.** Nothing is published here and
+nothing will be published to npm — decided 2026-09-15. The one prerequisite was
+a published worker image to layer onto, and the core now publishes one:
+`ghcr.io/webamigos/ragen-worker` on every release (the core spec's G1). That
+unblocks G2 — the adapter moving here — and G3, the core dropping its copy.
 
-Deferring the move costs nothing and buys something: while the adapter is in
-the core, the core's own CI can run it against a real Temporal, so drift
-between the two is zero because nothing has left yet.
+Until the core has dropped it, `packages/jobs-temporal` exists in both
+repositories and **the core's is the one an install uses**. This repository's
+copy is not the source of truth until its parity job is green and the core's
+G3 has landed; treat the two as one move that is half done rather than as a
+supported fork.
 
 ## What this repository is not
 
 - **Not a fork of the worker.** It holds no pipeline handler and no activity.
   Both come from the core: the handlers from `@ragenai/jobs`, the activities
-  from the worker image that this repository's Dockerfile extends — an image
-  the core does not publish yet, which is a prerequisite rather than an
-  assumption.
+  from the worker image that this repository's Dockerfile extends —
+  `ghcr.io/webamigos/ragen-worker`, published on every core release.
   A copy of either here is the failure the core's ADR-26 and ADR-33 were
   written to undo.
 - **Not a paywall.** See below.
@@ -62,7 +60,7 @@ mechanism — no per-file headers, no allowlists.
 ## Repository layout
 
 ```
-packages/        one workspace per component (empty — see packages/README.md)
+packages/        one workspace per component — see packages/README.md
 docs/            deployment notes: durable execution, cloud model providers
 AGENTS.md        the canonical guidance for humans and coding agents
 ```
