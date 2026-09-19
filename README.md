@@ -25,9 +25,17 @@ spec's G1). `packages/jobs-temporal` holds the adapter, its Dockerfile builds
 the layered worker image, and the parity job runs the core's own integration
 suite against it on a real Temporal server.
 
-What is left is the core's G3. Until it lands `packages/jobs-temporal` exists in
-both repositories and **the core's is the one an install uses**; treat the two
-as one move that is half done rather than as a supported fork.
+The core's G3 has landed, so `packages/jobs-temporal` exists here and nowhere
+else: this is not a fork of a package the core also has, it is the package.
+What the core keeps is the _bootstrap_ the worker image ships compiled —
+`temporal-runtime.js`, `workflows/`, `temporal-failure.js` — because those
+import its handlers and its activity modules, and moving them here would mean
+compiling the pipeline here.
+
+One consequence to know before deploying: the core's published `web` and `api`
+images are BullMQ producers, so a Temporal deployment builds those two itself.
+[`docs/durable-execution.md`](docs/durable-execution.md) has the procedure; it
+is a dependency and two lines per application.
 
 ## What this repository is not
 

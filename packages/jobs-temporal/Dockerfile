@@ -59,13 +59,27 @@ RUN npx tsc -p tsconfig.json
 # changes the resolution of nothing else. It costs about 50 MB of duplication
 # (331 MB nested against 279 MB hoisted, measured), which is the right side of
 # that trade for a layer nobody can test in CI against every worker dependency.
+# **Every package the worker imports *directly* is named here, and that is not
+# the same list as "the SDK".** `--install-strategy=nested` puts each transitive
+# dependency underneath the package that asked for it — which is the point, see
+# above — so a package the worker resolves from its own `dist/` must be at the
+# top of this tree, not nested under `@temporalio/worker`.
+#
+# `@temporalio/common` is the one that catches people out, and it caught this
+# Dockerfile: `dist/temporal-failure.js` imports it for `ApplicationFailure`,
+# and until the core's G3 it happened to resolve anyway — the core shipped
+# `@temporalio/{client,common,proto}` in `/app/node_modules` as a side effect of
+# the adapter being a workspace there. G3 removed that, and the layer failed at
+# boot with `Cannot find package '@temporalio/common'`. The final stage checks
+# the list against the image rather than trusting it.
 FROM node:24-slim AS sdk
 WORKDIR /sdk
 RUN npm init -y > /dev/null \
     && npm install --install-strategy=nested --no-package-lock --no-audit --no-fund --omit=dev \
     @temporalio/worker@1.23.0 \
     @temporalio/workflow@1.23.0 \
-    @temporalio/client@1.23.0
+    @temporalio/client@1.23.0 \
+    @temporalio/common@1.23.0
 
 FROM ${BASE_IMAGE}:${BASE_TAG}
 USER root
@@ -94,6 +108,18 @@ RUN rm -rf /app/node_modules/@ragenai/jobs-temporal
 COPY --from=adapter /adapter/package.json /app/apps/worker/node_modules/@ragenai/jobs-temporal/package.json
 COPY --from=adapter /adapter/dist /app/apps/worker/node_modules/@ragenai/jobs-temporal/dist
 RUN chown -R worker:nodejs /app/apps/worker/node_modules
+
+# The layer is only correct if the image can resolve what it imports, and that
+# list belongs to the base image rather than to this Dockerfile — so
+# `verify-layer.mjs` derives it from the compiled output and resolves each entry
+# from where the worker runs. It is the check that would have caught
+# `@temporalio/common`, and it keeps catching the next one: a core release that
+# imports another package of the family fails this build instead of failing at
+# somebody's boot.
+#
+# In the Dockerfile rather than only in CI, so a local build is checked too.
+COPY packages/jobs-temporal/verify-layer.mjs /tmp/verify-layer.mjs
+RUN node /tmp/verify-layer.mjs && rm /tmp/verify-layer.mjs
 
 USER worker
 

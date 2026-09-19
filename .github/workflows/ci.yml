@@ -114,21 +114,13 @@ jobs:
           cache-from: type=gha,scope=jobs-temporal
           cache-to: type=gha,scope=jobs-temporal,mode=max
 
-      # The build can succeed and the layer still land somewhere the worker does
-      # not resolve — a `COPY` into the wrong `node_modules`, or a base image
-      # whose layout moved. Both importers are checked from the directory the
-      # worker's compiled code actually runs in.
-      - name: The worker resolves the adapter and the SDK
-        run: |
-          docker run --rm --entrypoint node ragen-worker-temporal:ci -e "
-            for (const name of ['@ragenai/jobs-temporal', '@temporalio/worker', '@temporalio/workflow', '@ragenai/jobs']) {
-              console.log(name, '->', require.resolve(name));
-            }
-            const { TemporalJobRuntime } = require('@ragenai/jobs-temporal');
-            if (typeof TemporalJobRuntime !== 'function') {
-              throw new Error('the adapter did not export TemporalJobRuntime');
-            }
-          "
+      # There is deliberately nothing to assert after the build. The
+      # Dockerfile's last stage runs `verify-layer.mjs` *inside* the image — it
+      # derives the packages to resolve from the base image's own compiled
+      # output and resolves each from where the worker runs — so a `COPY` into
+      # the wrong `node_modules`, a base whose layout moved, or an SDK package
+      # the install did not name at the top of its tree fails the step above.
+      # A second check here would be a weaker copy of that one.
 
   commits:
     name: Conventional commits

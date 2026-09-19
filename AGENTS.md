@@ -14,9 +14,9 @@ them.
 
 One component exists, and nothing is published:
 
-| Component                | What it is                                                  | State                                                                                                              |
-| ------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | here, with its Dockerfile and the parity job. The core still holds the copy an install uses until its **G3** lands |
+| Component                | What it is                                                  | State                                                                                               |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | here, with its Dockerfile and the parity job, and **the only copy** — the core's G3 dropped its own |
 
 **Nothing is published to npm**, here or in the core — decided 2026-09-15.
 The delivery mechanism is a container image:

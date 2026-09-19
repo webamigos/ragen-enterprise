@@ -1,13 +1,13 @@
 # Durable execution: running Ragen's worker on Temporal
 
-**State: the adapter is here; the core has not dropped its copy yet.**
-`packages/jobs-temporal` holds it, `packages/jobs-temporal/Dockerfile` builds
-the layered image, and
+**State: this is the only copy of the adapter.** The core's Phase G is complete
+— its G3 dropped `packages/jobs-temporal` from
+[`webamigos/RagenAI`](https://github.com/webamigos/RagenAI), so
+`@ragenai/jobs-temporal` exists here and nowhere else.
+`packages/jobs-temporal/Dockerfile` builds the layered worker image, and
 [`.github/workflows/temporal-parity.yml`](../.github/workflows/temporal-parity.yml)
 runs the core's own worker integration suite against it on a real Temporal
-server. What remains is the core's Phase G3 — until that lands the core still
-ships `packages/jobs-temporal` too, and **the core's copy is the one an install
-uses**. Nothing is published to npm in either repository; the delivery
+server. Nothing is published to npm in either repository; the delivery
 mechanism is the image. The shape below is a commitment made in the core's
 [worker-runtime spec](https://github.com/webamigos/RagenAI/blob/main/docs/specs/2026-09-15-bullmq-is-the-worker-runtime.md),
 §8.
@@ -73,23 +73,52 @@ could not drift into two behaviours, one of which nobody tests.
    handlers and its activity modules, so moving it here would mean compiling the
    pipeline here, which invariants 1 and 2 forbid. See the core spec's G2.
 
-2. **The switch.** `WORKER_RUNTIME=temporal`, read by the worker _and_ by every
-   producer — `apps/web` and `apps/api` enqueue, so they must agree with the
-   worker or the jobs go to an engine nobody is reading.
+   The Dockerfile's last stage runs
+   [`verify-layer.mjs`](../packages/jobs-temporal/verify-layer.mjs) inside the
+   image it just built: it reads every `@temporalio/*` the base image's compiled
+   output imports, resolves each from where the worker runs, and then loads the
+   adapter. That is not belt and braces — it is what caught `@temporalio/common`,
+   which `dist/temporal-failure.js` imports and which resolved by accident until
+   the core's G3 stopped shipping the adapter workspace that had been dragging
+   it in.
 
-   > **The producers are the open question in the core's G3.** Today they can
-   > enqueue on Temporal because `@ragenai/jobs-temporal` is still one of the
-   > core's workspaces and a full `npm ci` puts it in both images. When the core
-   > drops it, the two static `import … from '@ragenai/jobs-temporal'` lines in
-   > `apps/web/src/libs/jobs/index.ts` and `apps/api/src/jobs/jobs.service.ts`
-   > go with it, and this repository owes those two images an answer. Until that
-   > is decided, do not read "the worker image is the only layer" as settled.
+2. **The producers, which you build.** `apps/web` and `apps/api` enqueue, so
+   they have to speak the same engine as the worker — and the images the core
+   publishes are BullMQ producers. That is the core's G3 decision. The reason is
+   that `apps/web` is a Next standalone build: it traces its imports at build
+   time, so a package that is not in the tree cannot be reached, and an image of
+   it cannot be layered the way the worker's can. `apps/api` could have been,
+   and deliberately is not — half a deployment enqueueing to the other engine
+   reads as a worker that is merely slow, which is the failure the seam exists
+   to prevent.
 
-3. **The schedules.** The two nightly jobs are registered by explicit scripts in
+   So for each of the two, in a checkout of the core:
+
+   1. add `@ragenai/jobs-temporal` to `apps/web/package.json` and
+      `apps/api/package.json`, however you vendor this repository;
+   2. add two lines beside the existing registration — in
+      `apps/web/src/libs/jobs/index.ts` and `apps/api/src/jobs/jobs.service.ts`,
+      both of which say so in a comment at the call site:
+
+      ```ts
+      import { TemporalJobRuntime } from '@ragenai/jobs-temporal';
+      registerJobRuntime('temporal', () => new TemporalJobRuntime());
+      ```
+
+   3. build the two images as the core does.
+
+   Written down rather than made to look automatic. Without it a producer throws
+   `no adapter registered for WORKER_RUNTIME="temporal"` on its first enqueue —
+   loud and immediate, which is better than a queue nobody reads.
+
+3. **The switch.** `WORKER_RUNTIME=temporal`, on the worker _and_ on every
+   producer. They must agree, or the jobs go to an engine nobody is reading.
+
+4. **The schedules.** The two nightly jobs are registered by explicit scripts in
    the core (`ensure-demo-cleanup-schedule.ts`,
    `ensure-analytics-retention-schedule.ts`), and a schedule is state in
    whichever engine is running jobs. On Temporal those scripts need the adapter,
-   so **run them inside this image**, not the OSS one:
+   so **run them from this image**, not the OSS one:
 
    ```bash
    docker run --rm -e WORKER_RUNTIME=temporal … ragen-worker-temporal \
