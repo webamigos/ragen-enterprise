@@ -2,11 +2,18 @@
 #
 # A runtime nothing runs is not supported, it is abandoned with a package name.
 # So the Temporal adapter is exercised by the *core's* worker integration suite,
-# against a real Temporal server and the published handlers — not by a suite
+# against a real Temporal server and the core's own handlers — not by a suite
 # written here, which would drift into testing the adapter against its own
 # assumptions.
 #
 # See AGENTS.md, invariant 4, and the core's worker-runtime spec, §8.3.
+#
+# **This is the half that costs something.** While the adapter lived in the core
+# the same suite, the same handlers and the same workflows were one checkout and
+# the job was `npm run worker:test:jobs`. Here it resolves two repositories and
+# splices one into the other, which is the price §8.6 said would come due in
+# Phase G. Read it as an argument for keeping this green rather than for
+# postponing it.
 name: Temporal parity
 
 on:
@@ -17,6 +24,11 @@ on:
     # Nightly, after the core's own nightly suite has had time to publish.
     - cron: '0 4 * * *'
   workflow_dispatch:
+    inputs:
+      core-ref:
+        description: 'Ref of webamigos/RagenAI to test against (default: main)'
+        required: false
+        default: main
 
 permissions:
   contents: read
@@ -29,29 +41,124 @@ jobs:
   parity:
     name: Core worker suite on Temporal
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      redis:
+        # The suite's shared harness flushes a Redis database whichever runtime
+        # is under test, and three of its files are BullMQ's alone and skip
+        # themselves. Started because a service container cannot be conditioned
+        # on anything, and an unused Redis costs a second.
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Selected the way a deployment selects it, not through a flag only the
+      # tests know about.
+      WORKER_RUNTIME: temporal
+      JOBS_TEST_REDIS_URL: redis://localhost:6379/15
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out this repository
+        uses: actions/checkout@v7
+        with:
+          path: enterprise
+          persist-credentials: false
 
-      - name: Is there an adapter to test yet?
-        id: adapter
+      # The core, at `main` by default. Pinning a tag here would test the
+      # adapter against a contract that is already shipped, which is the
+      # question the published image answers; this job's question is whether the
+      # *next* core release will still be able to run Temporal.
+      - name: Check out the core
+        uses: actions/checkout@v7
+        with:
+          repository: webamigos/RagenAI
+          ref: ${{ inputs.core-ref || 'main' }}
+          path: core
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: enterprise/.nvmrc
+
+      # Both repositories pin a package manager, and they pin different ones —
+      # the core is on npm 10.9.8 because npm 11 cannot resolve its tree, and
+      # this repository is on npm 11 because npm 10 crashes on vitest's peer
+      # graph. Corepack reads `packageManager` from the directory it is invoked
+      # in, so one `enable` serves both and each `npm ci` below gets the version
+      # its own repository asked for.
+      - name: Enable corepack for npm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+        run: corepack enable npm
+
+      - name: Install this repository
+        working-directory: enterprise
+        run: npm ci
+
+      - name: Install the core
+        working-directory: core
         run: |
-          if [ -d packages/jobs-temporal ]; then
-            echo 'present=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'present=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::No packages/jobs-temporal yet — the adapter arrives with the core repository'\''s Phase E. This job is a placeholder until then, and passing it proves nothing.'
-          fi
+          npm ci
+          npm run packages:build
+          npx prisma generate
 
-      # Everything below runs only once the adapter exists. Steps to add with
-      # it, so the intent is not reconstructed from scratch later:
+      # Against the core checkout's contract, not the published image's.
       #
-      #   - services: a `temporalio/auto-setup` container and a Postgres for it
-      #   - install the published @ragenai/jobs at the version this adapter
-      #     declares, so the handlers under test are the real ones
-      #   - run the core's worker integration suite with WORKER_RUNTIME=temporal
-      #   - assert the four behaviours BullMQ cannot provide: resume after a
-      #     worker kill mid-job, durable retry state, cancel at a checkpoint,
-      #     and both schedules firing exactly once
-      - name: Placeholder
-        if: steps.adapter.outputs.present == 'false'
-        run: echo 'Nothing to run.'
+      # `RAGEN_CORE_PATH` is documented as the escape hatch and this is the case
+      # it exists for: the suite about to run is *that* checkout's, so the
+      # adapter has to compile against *that* checkout's `@ragenai/jobs`. The
+      # image is the right answer for a release build and the wrong one here —
+      # it would hide exactly the breakage this job exists to find, a contract
+      # change that has not shipped yet.
+      - name: Build the adapter against the core's contract
+        working-directory: enterprise
+        env:
+          RAGEN_CORE_PATH: ${{ github.workspace }}/core
+        run: |
+          npm run contract
+          npm run build
+
+      # The splice. This is what the enterprise Dockerfile does to the published
+      # image, one level down: put *this* adapter where the core resolves
+      # `@ragenai/jobs-temporal`, so the suite drives the code this repository
+      # ships rather than whatever the checkout happened to contain.
+      #
+      # Written to work on both sides of the core's G3. Before it, that path is
+      # a symlink npm created for the workspace — `rm -rf` removes the link, not
+      # the core's package. After it, the path does not exist and this creates
+      # it. Either way what remains is a plain directory holding this
+      # repository's build, and Node resolves `@temporalio/client` and
+      # `@ragenai/jobs` from the core's own `node_modules` one level up.
+      - name: Splice this adapter into the core
+        run: |
+          set -euo pipefail
+          target=core/node_modules/@ragenai/jobs-temporal
+          rm -rf "$target"
+          mkdir -p "$target"
+          cp enterprise/packages/jobs-temporal/package.json "$target/package.json"
+          cp -R enterprise/packages/jobs-temporal/dist "$target/dist"
+          node -e "
+            const path = require.resolve('@ragenai/jobs-temporal', {
+              paths: ['${{ github.workspace }}/core/apps/worker'],
+            });
+            if (!path.includes('node_modules/@ragenai/jobs-temporal')) {
+              throw new Error('the core still resolves its own adapter: ' + path);
+            }
+            console.log('the core resolves the adapter at ' + path);
+          "
+
+      # Temporal is not a service container, and that is a deviation from the
+      # spec's wording worth restating here: §8.3 says "a real Temporal
+      # container". `@temporalio/testing` starts a real Temporal server from a
+      # cached binary, which is the same engine without `auto-setup`'s Postgres,
+      # seeds and readiness dance — and it is how a developer runs this suite on
+      # a laptop, since the core's Phase E deleted Temporal from its
+      # `docker-compose.yml` on purpose. Point `JOBS_TEST_TEMPORAL_ADDRESS` at a
+      # container to override.
+      - name: Run the core's job-runtime integration suite on Temporal
+        working-directory: core
+        run: npm run worker:test:jobs

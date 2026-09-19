@@ -1,8 +1,8 @@
 # packages/
 
-One npm workspace per component. Empty for now.
+One npm workspace per component.
 
-| Planned         | What it is                                                                                                                                       |
+| Package         | What it is                                                                                                                                       |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `jobs-temporal` | `@ragenai/jobs-temporal` — the Temporal adapter behind the core's `@ragenai/jobs` seam, plus the Dockerfile that layers it onto the worker image |
 

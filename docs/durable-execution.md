@@ -1,12 +1,16 @@
 # Durable execution: running Ragen's worker on Temporal
 
-**State: not yet implemented, and not yet here.** The adapter is being built in
-the core as `packages/jobs-temporal` and moves to this repository once
-`ragen-worker` is published as an image — the core spec's Phase G. Nothing is
-published to npm in either repository. This page describes the shape the
-component will have, because that shape is a commitment made in the core's
-[worker-runtime spec](https://github.com/webamigos/RagenAI/blob/main/docs/specs/2026-09-15-bullmq-is-the-worker-runtime.md)
-and is easier to hold to when it is written down before the code exists.
+**State: this is the only copy of the adapter.** The core's Phase G is complete
+— its G3 dropped `packages/jobs-temporal` from
+[`webamigos/RagenAI`](https://github.com/webamigos/RagenAI), so
+`@ragenai/jobs-temporal` exists here and nowhere else.
+`packages/jobs-temporal/Dockerfile` builds the layered worker image, and
+[`.github/workflows/temporal-parity.yml`](../.github/workflows/temporal-parity.yml)
+runs the core's own worker integration suite against it on a real Temporal
+server. Nothing is published to npm in either repository; the delivery
+mechanism is the image. The shape below is a commitment made in the core's
+[worker-runtime spec](https://github.com/webamigos/RagenAI/blob/main/docs/specs/2026-09-15-bullmq-is-the-worker-runtime.md),
+§8.
 
 ## Why there is a choice at all
 
@@ -39,24 +43,94 @@ identically on both. That is not an accident: the core moved cancellation from a
 Temporal signal to a conditional database write precisely so the two runtimes
 could not drift into two behaviours, one of which nobody tests.
 
-## How it will be deployed
+## How it is deployed
 
-Two things, no more:
+1. **The worker image.**
+   [`packages/jobs-temporal/Dockerfile`](../packages/jobs-temporal/Dockerfile)
+   is `FROM ghcr.io/webamigos/ragen-worker` plus the compiled adapter. The
+   handlers and the 69 activity modules come from the core; nothing is rebuilt
+   here. Build it from the repository root and run it instead of the OSS worker
+   image:
 
-1. **The image.** This repository's Dockerfile is `FROM` the Ragen worker
-   image plus the compiled adapter. The handlers and the 69 activity modules
-   come from the core; nothing is rebuilt here. Run that image instead of the
-   OSS worker image.
+   ```bash
+   docker build -f packages/jobs-temporal/Dockerfile -t ragen-worker-temporal .
+   ```
 
-   The core does not publish that image to a registry yet, so this is the one
-   prerequisite between here and a deployable artifact.
+   Pin the base tag — `BASE_TAG` defaults to a release, and `latest` and the
+   minor series both move.
 
-2. **The switch.** `WORKER_RUNTIME=temporal`, read by the worker _and_ by every
-   producer — `apps/web` and `apps/api` enqueue, so they must agree with the
-   worker or the jobs go to an engine nobody is reading.
+   **The layer adds two things, not one.** The OSS worker image ships the
+   Temporal _bootstrap_ — `dist/temporal-runtime.js`, `dist/workflows/`,
+   `dist/temporal-failure.js` — with none of the packages those files import,
+   because `@temporalio/*` are `apps/worker`'s devDependencies and the image
+   installs with `--omit=dev`. Set `WORKER_RUNTIME=temporal` on an unextended
+   image and it starts, logs `runtime: "temporal"`, and exits with
+   `Cannot find package '@temporalio/worker'`. Restoring the SDK alongside the
+   adapter is this layer's job, and it is why the layer exists rather than
+   being a single environment variable.
 
-Plus Temporal itself, which the core ships behind a compose profile and a Helm
-value rather than in the default install.
+   The bootstrap itself stays in the core on purpose: it imports the core's
+   handlers and its activity modules, so moving it here would mean compiling the
+   pipeline here, which invariants 1 and 2 forbid. See the core spec's G2.
+
+   The Dockerfile's last stage runs
+   [`verify-layer.mjs`](../packages/jobs-temporal/verify-layer.mjs) inside the
+   image it just built: it reads every `@temporalio/*` the base image's compiled
+   output imports, resolves each from where the worker runs, and then loads the
+   adapter. That is not belt and braces — it is what caught `@temporalio/common`,
+   which `dist/temporal-failure.js` imports and which resolved by accident until
+   the core's G3 stopped shipping the adapter workspace that had been dragging
+   it in.
+
+2. **The producers, which you build.** `apps/web` and `apps/api` enqueue, so
+   they have to speak the same engine as the worker — and the images the core
+   publishes are BullMQ producers. That is the core's G3 decision. The reason is
+   that `apps/web` is a Next standalone build: it traces its imports at build
+   time, so a package that is not in the tree cannot be reached, and an image of
+   it cannot be layered the way the worker's can. `apps/api` could have been,
+   and deliberately is not — half a deployment enqueueing to the other engine
+   reads as a worker that is merely slow, which is the failure the seam exists
+   to prevent.
+
+   So for each of the two, in a checkout of the core:
+
+   1. add `@ragenai/jobs-temporal` to `apps/web/package.json` and
+      `apps/api/package.json`, however you vendor this repository;
+   2. add two lines beside the existing registration — in
+      `apps/web/src/libs/jobs/index.ts` and `apps/api/src/jobs/jobs.service.ts`,
+      both of which say so in a comment at the call site:
+
+      ```ts
+      import { TemporalJobRuntime } from '@ragenai/jobs-temporal';
+      registerJobRuntime('temporal', () => new TemporalJobRuntime());
+      ```
+
+   3. build the two images as the core does.
+
+   Written down rather than made to look automatic. Without it a producer throws
+   `no adapter registered for WORKER_RUNTIME="temporal"` on its first enqueue —
+   loud and immediate, which is better than a queue nobody reads.
+
+3. **The switch.** `WORKER_RUNTIME=temporal`, on the worker _and_ on every
+   producer. They must agree, or the jobs go to an engine nobody is reading.
+
+4. **The schedules.** The two nightly jobs are registered by explicit scripts in
+   the core (`ensure-demo-cleanup-schedule.ts`,
+   `ensure-analytics-retention-schedule.ts`), and a schedule is state in
+   whichever engine is running jobs. On Temporal those scripts need the adapter,
+   so **run them from this image**, not the OSS one:
+
+   ```bash
+   docker run --rm -e WORKER_RUNTIME=temporal … ragen-worker-temporal \
+     node dist/scripts/ensure-analytics-retention-schedule.js
+   ```
+
+   Both take `--delete`, which is what a switch back needs.
+
+Plus Temporal itself, which you run. The core's `docker-compose.yml` and Helm
+chart no longer contain a Temporal server at all — `TEMPORAL_SERVER_ADDRESS`
+points at one you operate, and it is required rather than defaulted, because a
+`localhost:7233` fallback is right on a laptop and silent everywhere else.
 
 ## Switching an existing install
 
@@ -81,10 +155,24 @@ restart rather than a data change.
 A runtime nothing runs is abandoned with a package name. So:
 
 - this repository's CI runs the core's worker integration suite against a real
-  Temporal container, against the current published handlers, nightly and on
-  every push;
-- a breaking change to `JobContext` in `@ragenai/jobs` is a major version,
-  because this component is an out-of-repository consumer of that interface.
+  Temporal server, against the core's current handlers, nightly and on every
+  push. It checks out `webamigos/RagenAI`, builds this adapter against _that
+  checkout's_ `@ragenai/jobs` rather than the shipped image's, splices the build
+  into the core's `node_modules` and runs `npm run worker:test:jobs` with
+  `WORKER_RUNTIME=temporal` — so the question it answers is whether the _next_
+  core release will still be able to run Temporal, not whether the last one
+  could;
+- a breaking change to `JobContext` in `@ragenai/jobs` breaks an
+  out-of-repository consumer, and is expected to be noticed here rather than
+  absorbed silently.
 
-If either stops being true, the honest move is to say Temporal is unsupported —
-not to leave the package published and hope.
+There is no version number doing that second job, deliberately. Nothing is
+published to npm: the adapter declares `@ragenai/jobs` as a peer dependency it
+never installs and compiles against the copy inside the base image, where
+`/app/node_modules/@ragenai/*` are symlinks into `/app/packages/`. So it is
+type-checked against the contract the image actually ships rather than against
+a version range that can skew from it — and the parity job is what turns a
+compile-time agreement into a behavioural one.
+
+If either bullet stops being true, the honest move is to say Temporal is
+unsupported — not to leave the package here and hope.

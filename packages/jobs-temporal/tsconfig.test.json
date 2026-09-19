@@ -1,0 +1,11 @@
+{
+  // The tests, which `tsconfig.json` excludes because they must not reach
+  // `dist/`. Without this file they would be type-checked by nothing: vitest
+  // transpiles per file and never checks types, so a test asserting against a
+  // `JobRun` shape the contract no longer has would run green.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}

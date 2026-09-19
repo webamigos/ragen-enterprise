@@ -1,0 +1,37 @@
+{
+  "name": "@ragenai/jobs-temporal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Temporal adapter behind the core's @ragenai/jobs seam — the only package that imports @temporalio/*",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit --incremental --tsBuildInfoFile ./typecheck.tsbuildinfo && tsc --incremental --tsBuildInfoFile ./typecheck.test.tsbuildinfo -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@temporalio/client": "1.23.0"
+  },
+  "peerDependencies": {
+    "@ragenai/jobs": "*"
+  },
+  "peerDependenciesMeta": {
+    "@ragenai/jobs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.7.0",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

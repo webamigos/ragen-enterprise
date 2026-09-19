@@ -12,15 +12,15 @@ which is the core and the place almost all work happens. Read the core's own
 `AGENTS.md` first: its conventions apply here unless something below overrides
 them.
 
-One component is planned, and none is published yet:
+One component exists, and nothing is published:
 
-| Component                | What it is                                                  | State                                                                                                                                                     |
-| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | not here yet — built in the core as `packages/jobs-temporal`, and it moves in the core's **Phase G**, gated on `ragen-worker` being published as an image |
+| Component                | What it is                                                  | State                                                                                               |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `@ragenai/jobs-temporal` | The Temporal adapter behind the core's `@ragenai/jobs` seam | here, with its Dockerfile and the parity job, and **the only copy** — the core's G3 dropped its own |
 
 **Nothing is published to npm**, here or in the core — decided 2026-09-15.
-The delivery mechanism is a container image, which is why Phase G waits for
-one.
+The delivery mechanism is a container image:
+`packages/jobs-temporal/Dockerfile` is `FROM ghcr.io/webamigos/ragen-worker`.
 
 **The reason this repository exists** is that Ragen's default install runs the
 worker on BullMQ, and the Temporal path costs every install that does not want
@@ -34,11 +34,30 @@ this repository has to honour.
 
 ```bash
 npm install                 # Node 24.x — `nvm use`
+npm run contract            # fetch @ragenai/jobs out of the worker image
 npm run verify              # typecheck + test + build across every workspace
 npm run typecheck
 npm run test
 npm run format:check        # prettier; `npm run format` writes
+
+# The deployment artifact, from the repository root:
+docker build -f packages/jobs-temporal/Dockerfile -t ragen-worker-temporal .
 ```
+
+**`npm run contract` comes first, and `npm install` cannot do its job.**
+`@ragenai/jobs` is not on any registry, so the script lifts it out of
+`ghcr.io/webamigos/ragen-worker` — the tag is read from the adapter's own
+Dockerfile, so the thing type-checked against and the thing layered onto cannot
+disagree. Pointing `RAGEN_CORE_PATH` at a core checkout uses that instead, which
+is what you want when you are changing the contract and the adapter together and
+what CI's parity job does; it is honest about the cost, which is that you are
+then compiling against a contract no image ships yet.
+
+**npm 11, pinned in `packageManager`.** npm 10.9.8 — which is what the _core_
+pins, for its own tree — crashes on vitest's peer graph here
+(`Cannot read properties of null (reading 'edgesOut')`). The two repositories
+pin different versions on purpose; corepack reads the pin from the directory it
+runs in, so a job that installs both gets each one right.
 
 There is no lint task yet, and that is deliberate rather than forgotten: the
 core's shared config is `@ragenai/eslint-config`, a workspace package that is
@@ -65,11 +84,11 @@ to avoid.
    installs the pipeline from source is the same mistake as (1) wearing a
    different hat.
 
-   **That base image does not exist yet.** Nothing in the core publishes a
-   Ragen image to a registry — self-hosting means building from source today —
-   so publishing `ragen-worker` is a prerequisite for this repository's
-   artifact, and it is half of the core spec's Q1. Do not work around it by
-   building the pipeline here.
+   **That base image exists now.** The core publishes `ragen-worker` (and
+   `web`, `api`, `admin`, `mcp`) to `ghcr.io/webamigos` on every release, which
+   was the core spec's G1 and the one gate this repository's artifact waited
+   on. Build `FROM ghcr.io/webamigos/ragen-worker:<tag>` — pin the tag, and do
+   not work around the base by building the pipeline here.
 
 3. **The contract is a dependency, not a copy.** Job names, payload types and
    `JobContext` are `@ragenai/jobs`. A hand-synced copy of them here would be
