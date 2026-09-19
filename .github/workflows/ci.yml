@@ -29,16 +29,50 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # npm 10.9.8 — which is what the core pins — crashes on vitest's peer
+      # graph here, so `packageManager` pins npm 11 and corepack is what makes
+      # `setup-node`'s bundled npm honour it. Same mechanism as the core's
+      # `use-pinned-npm` action, opposite direction.
+      - name: Enable corepack for npm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+        run: |
+          corepack enable npm
+          echo "npm $(npm --version) (package.json pins $(node -p "require('./package.json').packageManager"))"
+
       - name: Install dependencies
         run: npm ci
 
       - name: Format
         run: npm run format:check
 
+      # `@ragenai/jobs` is on no registry, so `npm ci` cannot install it: it
+      # comes out of the worker image this repository layers onto. Cached on the
+      # image tag, which is pinned in the adapter's Dockerfile — a 1 GB pull per
+      # run for a few hundred kilobytes of declarations would otherwise be the
+      # slowest step here by an order of magnitude.
+      - name: Contract cache key
+        id: contract
+        run: |
+          tag=$(grep -oP '^ARG BASE_TAG=\K\S+' packages/jobs-temporal/Dockerfile)
+          image=$(grep -oP '^ARG BASE_IMAGE=\K\S+' packages/jobs-temporal/Dockerfile)
+          echo "key=${image//\//-}-${tag}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        id: contract-cache
+        with:
+          path: node_modules/@ragenai/jobs
+          key: contract-${{ steps.contract.outputs.key }}
+
+      - name: Resolve the contract from the worker image
+        if: steps.contract-cache.outputs.cache-hit != 'true'
+        run: npm run contract
+
       # Each runs across every workspace via scripts/run-workspaces.mjs, which
-      # passes on a repository with no package yet — `npm run --workspaces`
-      # treats "no workspaces" as an error, and a red build on an empty
-      # scaffold says nothing about the code.
+      # tolerates there being none — `npm run --workspaces` treats "no
+      # workspaces" as an error, and a red build on an empty scaffold says
+      # nothing about the code. Kept now that there is one workspace, because
+      # the next component starts the same way.
       - name: Typecheck
         run: npm run typecheck
 
@@ -47,6 +81,54 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # The deployment artifact is the Dockerfile, so a build of it is the only
+  # thing that says the artifact still exists. Nothing else here touches it:
+  # `npm run build` compiles the adapter, which is one of the two things the
+  # image layers on, and would pass just as happily with a base image that had
+  # moved, a stage that no longer resolves the contract, or a COPY into a path
+  # the worker cannot see.
+  #
+  # Not pushed. Publishing the layered image is a release decision, and this job
+  # is asking a narrower question.
+  image:
+    name: Build the layered worker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          # The repository root, so the adapter is compiled in the same build
+          # that layers it — the Dockerfile's first line says so.
+          context: .
+          file: packages/jobs-temporal/Dockerfile
+          # The base image is published for amd64 only.
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ragen-worker-temporal:ci
+          cache-from: type=gha,scope=jobs-temporal
+          cache-to: type=gha,scope=jobs-temporal,mode=max
+
+      # The build can succeed and the layer still land somewhere the worker does
+      # not resolve — a `COPY` into the wrong `node_modules`, or a base image
+      # whose layout moved. Both importers are checked from the directory the
+      # worker's compiled code actually runs in.
+      - name: The worker resolves the adapter and the SDK
+        run: |
+          docker run --rm --entrypoint node ragen-worker-temporal:ci -e "
+            for (const name of ['@ragenai/jobs-temporal', '@temporalio/worker', '@temporalio/workflow', '@ragenai/jobs']) {
+              console.log(name, '->', require.resolve(name));
+            }
+            const { TemporalJobRuntime } = require('@ragenai/jobs-temporal');
+            if (typeof TemporalJobRuntime !== 'function') {
+              throw new Error('the adapter did not export TemporalJobRuntime');
+            }
+          "
 
   commits:
     name: Conventional commits

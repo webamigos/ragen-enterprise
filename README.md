@@ -17,17 +17,17 @@ in the core repository.
 
 ## Status
 
-**The gate is open; the move is in progress.** Nothing is published here and
-nothing will be published to npm — decided 2026-09-15. The one prerequisite was
-a published worker image to layer onto, and the core now publishes one:
-`ghcr.io/webamigos/ragen-worker` on every release (the core spec's G1). That
-unblocks G2 — the adapter moving here — and G3, the core dropping its copy.
+**The adapter is here; the core has not dropped its copy yet.** Nothing is
+published here and nothing will be published to npm — decided 2026-09-15. The
+one prerequisite was a published worker image to layer onto, and the core now
+publishes one: `ghcr.io/webamigos/ragen-worker` on every release (the core
+spec's G1). `packages/jobs-temporal` holds the adapter, its Dockerfile builds
+the layered worker image, and the parity job runs the core's own integration
+suite against it on a real Temporal server.
 
-Until the core has dropped it, `packages/jobs-temporal` exists in both
-repositories and **the core's is the one an install uses**. This repository's
-copy is not the source of truth until its parity job is green and the core's
-G3 has landed; treat the two as one move that is half done rather than as a
-supported fork.
+What is left is the core's G3. Until it lands `packages/jobs-temporal` exists in
+both repositories and **the core's is the one an install uses**; treat the two
+as one move that is half done rather than as a supported fork.
 
 ## What this repository is not
 

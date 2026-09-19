@@ -1,0 +1,32 @@
+{
+  // **CommonJS, and not this repository's NodeNext base.** The adapter is
+  // compiled against `@ragenai/jobs` as it exists inside the worker image, and
+  // that package ships CommonJS with no `exports` map and no `"type"` field —
+  // so it is resolved by `main`/`types` under classic node resolution. Matching
+  // the core's own `packages/jobs-temporal/tsconfig.json` is the point: the
+  // output has to be loadable by the same `await import()` in the image's
+  // `apps/worker/dist/jobs.js` that loaded the core's copy.
+  //
+  // `tsconfig.base.json` is therefore deliberately not extended here. Inheriting
+  // it would type-check this package against a module system the thing it plugs
+  // into does not use, which is agreement with the repository rather than
+  // with the artifact.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/__tests__/**"]
+}
