@@ -51,6 +51,34 @@ is a dependency and two lines per application.
   [open-core boundary](https://github.com/webamigos/RagenAI/blob/main/docs/open-core-boundary.md)
   puts it plainly: an install without the commercial layer is a complete,
   working Ragen.
+- **Not where a closed MCP connector goes.** That is
+  [`ragen-connectors-enterprise`](https://github.com/webamigos/ragen-connectors-enterprise)
+  — see below.
+
+## The other closed repository
+
+There are two, and the split is by *kind* rather than by licence:
+
+| | |
+|---|---|
+| **this repository** | deployment-side **libraries** a Ragen install loads — Apache 2.0, delivered as a container image rather than npm, currently the Temporal adapter |
+| [`ragen-connectors-enterprise`](https://github.com/webamigos/ragen-connectors-enterprise) | closed-source **MCP connectors** — standalone services Ragen calls out to over MCP, proprietary, deployed rather than distributed |
+
+A connector belongs there when it cannot be open: a paid upstream under a
+commercial agreement, a credential that cannot be handed out, or logic that is
+the commercial product rather than plumbing. The first is `rejestrio`, for the
+first reason — it calls a paid Polish registry API and carries a per-org budget
+guard and a cost audit.
+
+The open connectors — Google, ClickUp, HubSpot — stay in
+[`ragen-connectors`](https://github.com/webamigos/ragen-connectors), and the two
+connector repositories have the same shape on purpose, so
+`npx create-ragen-connector` and everything else applies to both.
+
+Nothing links the two closed repositories at build time. A connector is a
+service Ragen dials over MCP, added to an installation by a platform admin
+without a deploy; this repository's packages are npm dependencies of the worker.
+They are closed for related reasons and share no code.
 
 ## Why Apache 2.0 and not a commercial licence
 
