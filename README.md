@@ -57,12 +57,12 @@ is a dependency and two lines per application.
 
 ## The other closed repository
 
-There are two, and the split is by *kind* rather than by licence:
+There are two, and the split is by _kind_ rather than by licence:
 
-| | |
-|---|---|
-| **this repository** | deployment-side **libraries** a Ragen install loads — Apache 2.0, delivered as a container image rather than npm, currently the Temporal adapter |
-| [`ragen-connectors-enterprise`](https://github.com/webamigos/ragen-connectors-enterprise) | closed-source **MCP connectors** — standalone services Ragen calls out to over MCP, proprietary, deployed rather than distributed |
+|                                                                                           |                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **this repository**                                                                       | deployment-side **libraries** a Ragen install loads — Apache 2.0, delivered as a container image rather than npm, currently the Temporal adapter |
+| [`ragen-connectors-enterprise`](https://github.com/webamigos/ragen-connectors-enterprise) | closed-source **MCP connectors** — standalone services Ragen calls out to over MCP, proprietary, deployed rather than distributed                |
 
 A connector belongs there when it cannot be open: a paid upstream under a
 commercial agreement, a credential that cannot be handed out, or logic that is
@@ -77,8 +77,11 @@ connector repositories have the same shape on purpose, so
 
 Nothing links the two closed repositories at build time. A connector is a
 service Ragen dials over MCP, added to an installation by a platform admin
-without a deploy; this repository's packages are npm dependencies of the worker.
-They are closed for related reasons and share no code.
+without a deploy. What is here runs _inside_ the worker: the image build
+compiles the adapter from this repository and lays it into the worker's
+`node_modules` — so it takes the shape of an installed package without ever
+being published to or installed from npm. The two are closed for related
+reasons and share no code.
 
 ## Why Apache 2.0 and not a commercial licence
 
