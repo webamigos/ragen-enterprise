@@ -22,6 +22,14 @@ One component exists, and nothing is published:
 The delivery mechanism is a container image:
 `packages/jobs-temporal/Dockerfile` is `FROM ghcr.io/webamigos/ragen-worker`.
 
+**A closed MCP connector does not belong here.** That is
+[`ragen-connectors-enterprise`](https://github.com/webamigos/ragen-connectors-enterprise):
+standalone services Ragen dials over MCP, added to an installation by a
+platform admin without a deploy. This repository holds libraries the worker
+loads. The two are closed for related reasons and share no code, so nothing
+links them at build time — if you are about to add a connector here, you are in
+the wrong repository.
+
 **The reason this repository exists** is that Ragen's default install runs the
 worker on BullMQ, and the Temporal path costs every install that does not want
 it two containers, a gRPC dependency and six `@temporalio/*` packages under a
