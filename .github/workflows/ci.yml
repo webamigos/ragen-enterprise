@@ -100,7 +100,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           # The repository root, so the adapter is compiled in the same build
           # that layers it — the Dockerfile's first line says so.
